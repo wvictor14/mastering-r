@@ -1,0 +1,206 @@
+---
+title: 'Advanced R: Chapter 17'
+output: html_document
+date: "2023-06-27"
+editor_options: 
+  chunk_output_type: console
+---
+
+# 17.2
+
+```{r}
+library(rlang)
+library(lobstr)
+```
+
+`expr()` captures whatever you write
+
+```{r}
+expr(mean(x, na.rm = TRUE))
+expr(10 + 100 + 1000)
+```
+
+But it doesn't work if you use it in a function
+
+```{r}
+capture_it <- function(x) {
+  expr(x)
+}
+capture_it(a + b + c)
+```
+
+captures "x", not "a + b + c", what the user supplied
+
+for that, we use `enexpr()`
+
+```{r}
+capture_it <- function(x) {
+  enexpr(x)
+}
+capture_it(a + b + c)
+```
+
+the `en` means "enrich". This is the "lazy-evaluated" form of expr. "Lazy" 
+because it "waits" until it needs to be evaluated, rather than immediately after
+being defined (previous example).
+
+New terminology: `enexpr` "quotes" it's argument
+
+Expressions are like lists
+
+```{r}
+f <- expr(f(x = 1, y = 2))
+f
+
+# Add a new argument
+f$z <- 3
+f
+
+# Or remove an argument:
+f[[2]] <- NULL
+f
+```
+
+first element of an expression (or "call") is the function itself. 
+
+# 17.3 Call = tree
+
+Code is almost always represented as an abstract syntax tree (AST)
+
+`lobstr::ast()` displays the AST of an expression
+
+```{r}
+lobstr::ast(f(a, "b"))
+```
+
+`a` is a symbol
+`"b"` is a constant (string)
+
+```{r}
+lobstr::ast(f1(f2(a, b), f3(1, f4(2))))
+```
+
+# 17.4 code generates code
+
+e.g. `rlang::call2` generates a function call from it's arguments:
+
+```{r}
+call2("f", 1, 2, 3)
+call2("+", 1, call2("*", 2, 3))
+```
+
+alternatively, bang bang (aka unquote) operator can construct function calls too:
+
+```{r}
+xx <- expr(x + x)
+yy <- expr(y + y)
+
+expr(!!xx / !!yy)
+```
+
+This allows defining functions that can construct functions based on user input
+
+```{r}
+cv <- function(var) {
+  var <- enexpr(var) # quote user expression
+  expr(sd(!!var) / mean(!!var)) # insert into expression
+}
+
+cv(x)
+cv(x + y)
+```
+
+# 17.5 eval runs code
+
+`base::eval()` takes an expression and an environment and evaluates
+
+```{r}
+eval(expr(x + y), env(x = 1, y = 10))
+eval(expr(x + y), env(x = 2, y = 100))
+```
+
+if env omitted, takes global env
+
+```{r}
+x <- 10
+y <- 100
+eval(expr(x + y))
+```
+
+# 17.6 customize expressions with functions
+
+environmental varibales can be functions
+
+here, operators are overwritten
+
+```{r}
+string_math <- function(x) {
+  e <- env(
+    caller_env(),
+    `+` = function(x, y) paste0(x, y),
+    `*` = function(x, y) strrep(x, y)
+  )
+
+  eval(enexpr(x), e)
+}
+
+name <- "Hadley"
+string_math("Hello " + name)
+string_math(("x" * 2 + "-y") * 3)
+```
+
+
+# 17.7 customize expressions with data
+
+eval_tidy = base::eval
+
+except eval_tidy uses dataframe as datamask (environment)
+- where variables are columns
+
+
+```{r}
+df <- data.frame(x = 1:5, y = sample(5))
+eval_tidy(expr(x + y), df)
+```
+
+with `enexpr` to use in a function:
+
+```{r}
+with2 <- function(df, expr) {
+  eval_tidy(enexpr(expr), df)
+}
+
+with2(df, x + y)
+```
+
+# 17.8 quosures
+
+address this problem
+
+```{r}
+with2 <- function(df, expr) {
+  a <- 1000
+  eval_tidy(enexpr(expr), df)
+}
+df <- data.frame(x = 1:3)
+a <- 10
+with2(df, x + a)
+```
+
+We want `with2`to evaluate using a defined in global (a=1000) not within with2 
+definition (a=10).
+
+for this we can use a quosure, which bundles an expression with an environment
+
+```{r}
+with2 <- function(df, expr) {
+  a <- 1000
+  eval_tidy(enquo(expr), df)
+}
+
+with2(df, x + a)
+```
+
+Where the environment is global and the expression is global
+
+So for a datamask, always use enquo instead of enexpr

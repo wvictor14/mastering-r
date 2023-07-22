@@ -1,0 +1,116 @@
+---
+title: "custom facets"
+output: html_document
+date: "2023-07-22"
+---
+
+I'm writing some plotting functions to use in a shiny app. These plotting functions I would like to be compatible with other interactive analysis projects. I've developed them to take symbols as input and I'd like to keep it that way. But I've discovered this requirement makes life a lot more difficult due to the complexities of quotation / metaprogramming. Still, I'd like to understand these concepts a bit better, even if I'm unsure if the payoff is really worth it. What I mean is that I know I can make these functions work if I just convert everything is except strings as input.
+
+So this plotting function needs to be able to take none, 1, or more variables to facet by either row or column. However, I need to also understand how to supply input as strings because of their usage in shiny.
+
+# First try: vars + !!!
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(rlang)
+df <- datasets::Titanic |>  as_tibble()
+
+plotTitanic <- function(.data, facet_row = NULL, facet_col = NULL) {
+  ggplot(df, aes(x = n)) +
+    geom_density() +
+    facet_grid(
+      cols = vars(!!!facet_col),
+      rows = vars(!!!facet_row)
+    )
+}
+```
+
+I use the quote unsplice operator to inject facet_row/col arguments into cols 
+and rows.
+
+Then, on the user-facing side, the user supplies variables within the quoting
+function vars.
+
+This allows any number of facet_row and facet_col arguments:
+
+```{r}
+# allows facet_col take 0, 1, or multiple variables
+plotTitanic(df, facet_col = vars(Class, Sex))
+plotTitanic(df, facet_col = vars(Class))
+plotTitanic(df)
+```
+
+So requirement 1. is satisfied. This function can facet by 0, 1 or multiple 
+arguments using symbols as input. The user needs to supply these with vars()
+
+The other requirement is to understand how to supply strings as input. This is
+to accomodate usage in shiny apps, where often the input is supplies as strings
+e.g. input$variables_selected_by_user
+
+This is easy to do if I have the "raw" string (I'll explain what I mean by that)
+as input:
+
+```{r}
+# string input
+plotTitanic(df, facet_col = vars(!!sym('Class'))) # correct
+```
+
+But in shiny, the string is stored as an environmental variable e.g. input$some_var
+
+So for that, we can use ensym instead of sym
+
+```{r}
+# symbolized string input
+Class_obj <- 'Class'
+plotTitanic(df, facet_col = vars(!!ensym(Class_obj)))
+plotTitanic(df, facet_col = vars(!!sym('Class')))
+```
+
+But this doesn't work with multiple character vector:
+
+```{r}
+Class_objs <- c('Class', 'Sex')
+plotTitanic(df, facet_col = vars(!!ensym(Class_objs)))
+plotTitanic(df, facet_col = vars(!!!syms(c('Class', 'Sex'))))
+```
+
+
+## Summary
+
+`vars` is a quoting function that evaluates variable names in context of a dataset
+`vars` can also take an arbitrary expression, but I did not explore this
+
+`!!!` bang bang bang used inside `facet_grid` within the function definition 
+unquotes the input and evaluates in context of the data frame. This allows user 
+to supply symbol input e.g. `vars(var1, var2)`
+
+To use string input we need to use sym and ensym along with `!!`
+
+This doesn't work with multiple character vectors as input.
+
+# Try 2
+
+It seems like the nested `vars` calls are unnecssary. Let's try without, and
+see if it solves our multiple character input problem.
+
+```{r}
+plotTitanic2 <- function(.data, facet_row = NULL, facet_col = NULL) {
+  ggplot(df, aes(x = n)) +
+    geom_density() +
+    facet_grid(
+      cols = facet_col,
+      rows = facet_row
+    )
+}
+
+# allows facet_col take 0, 1, or multiple variables
+plotTitanic2(df, facet_col = vars(Class, Sex))
+plotTitanic2(df, facet_col = vars(Class))
+plotTitanic2(df)
+```
+
+```{r}
+plotTitanic(df, facet_col = vars(!!!syms(Class_objs)))
+```
+

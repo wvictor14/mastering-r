@@ -1,0 +1,50 @@
+---
+title: 'Advanced R: Chapter 19'
+output: html_document
+date: "2023-06-28"
+---
+
+```{r setup}
+library(rlang)
+library(purrr)
+```
+
+# 19.2 cement
+
+```{r}
+cement <- function(...) {
+  args <- ensyms(...)
+  paste(purrr::map(args, as_string), collapse = " ")
+}
+
+cement(Good, morning, Hadley)
+#> [1] "Good morning Hadley"
+cement(Good, afternoon, Alice)
+#> [1] "Good afternoon Alice"
+```
+
+This function `cement` quotes all of it's inputs, and then converts them to 
+strings.
+
+but it won't work when we want to use variables
+
+```{r}
+name <- "Hadley"
+time <- "morning"
+
+paste("Good", time, name)
+#> [1] "Good morning Hadley"
+```
+
+For that we need to use the unquote operator !!:
+
+```{r}
+cement(Good, !!time, !!name)
+```
+
+
+It makes it so the time and name variables are evaluated before "entering" the
+function
+
+# 19.3 quoting
+
