@@ -1,6 +1,10 @@
 ---
 title: "custom facets"
-output: html_document
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+    contained: true
 date: "2023-07-22"
 ---
 
@@ -69,7 +73,7 @@ plotTitanic(df, facet_col = vars(!!sym('Class')))
 
 But this doesn't work with multiple character vector:
 
-```{r}
+```{r, error = TRUE}
 Class_objs <- c('Class', 'Sex')
 plotTitanic(df, facet_col = vars(!!ensym(Class_objs)))
 plotTitanic(df, facet_col = vars(!!!syms(c('Class', 'Sex'))))
