@@ -1,6 +1,6 @@
 ---
 title: 'Advanced R: Chapter 19'
-output: html_document
+output: md_document
 date: "2023-06-28"
 ---
 
