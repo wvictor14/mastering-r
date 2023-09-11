@@ -253,7 +253,7 @@ There is one exception to this rule: if the generic has ..., the method can cont
 s3_methods_class('table')
 ```
 
-# inheritence
+# 13.5 inheritence
 
 classes can be a character vector, meaning objects can have multiple classes
 
@@ -274,3 +274,181 @@ S3 imposes no restrictions on the relationship between sub- and superclasses but
 The base type of the subclass should be that same as the superclass.
 
 The attributes of the subclass should be a superset of the attributes of the superclass.
+
+## subclassin
+
+To allow classes to have subclasses, define the superclass with arguments `...`
+and `class`
+
+```{r}
+new_secret <- function(x, ..., class = character()) {
+  stopifnot(is.double(x))
+
+  structure(
+    x,
+    ...,
+    class = c(class, "secret")
+  )
+}
+```
+Then the subclass definition can call the superclass with additional arguments
+
+```{r}
+new_supersecret <- function(x) {
+  new_secret(x, class = "supersecret")
+}
+
+print.supersecret <- function(x, ...) {
+  print(rep("xxxxx", length(x)))
+  invisible(x)
+}
+
+x2 <- new_supersecret(c(15, 1, 456))
+x2
+```
+
+methods defined for superclass will always return the superclass even when
+called on the subclass
+
+the only way to get methods to always return the same class, is to use
+
+`vctrs::vec_restore()` - there is no way to do so in base R
+
+13.6.3
+
+1. 
+
+```{r}
+some_days <- as.Date("2017-01-31") + sample(10, 5)
+class(some_days)
+
+
+s3_dispatch(some_days[1])
+`[.Date`
+
+.Date
+```
+
+# 15 S4
+
+In contrast to S3, S4 has stricter implementation. Use specialized functions to
+define
+
+- classes `setClass`
+- generics `setGeneric`
+- methods `setMethod`
+
+S4 has slots, accessed via `@` operator
+
+```{r}
+library(methods)
+```
+
+## 15.2 Basics
+
+s4 class definition:
+
+```{r}
+setClass("Person",  # name of s4 class
+  slots = c(        # name and class of slots 
+    name = "character", 
+    age = "numeric"
+  )
+)
+```
+
+After s4 class is defined, can construct a new instance with `new`,
+with values for each named slot
+
+```{r}
+john <- new(
+  "Person",             # name of s4 class 
+  name = "John Smith",  # name and value of slot
+  age = NA_real_)
+```
+
+get clas with `is()`
+```{r}
+is(john)
+```
+
+access slots with `@` or `slot()`
+
+```{r}
+john@name
+slot(john, 'age')
+```
+
+Best practice:
+generally, only use @ in method
+
+If you're using someone elses class, use access function if available
+
+Create **setter** and **getter** for the age slot by first defining generic:
+
+```{r}
+# define generic for `age` and `age<-`
+setGeneric("age", function(x) standardGeneric("age"))
+setGeneric("age<-", function(x, value) standardGeneric("age<-"))
+```
+
+then define methods:
+
+```{r}
+setMethod("age", "Person", function(x) x@age)     # getter
+setMethod("age<-", "Person", function(x, value) { # setter
+  x@age <- value
+  x
+})
+
+age(john) <- 50
+age(john)
+#> [1] 50
+```
+
+use `class?person` to get help on s4 class 
+to get help with method put ? in front: `?age(john)`
+
+sloop to identify object and function types
+
+```{r}
+sloop::otype(john)
+#> [1] "S4"
+sloop::ftype(age)
+#> [1] "S4"      "generic"
+```
+
+### 15.2.1 exercises
+
+1. lubridate::period() returns an S4 class. What slots does it have? What class is each slot? What accessors does it provide?
+
+```{r}
+library(lubridate)
+lubridate::period
+
+?lubridate::period(15.2)
+
+is(lubridate::period(15.2))
+
+class?Period
+class?Timespan
+```
+
+
+Timespan is an s4 class with no slots `class?Timespan`
+Period has 6 slots:
+
+- `.Data` a numeric
+- `minute` a numeric
+- `hour` a numeric
+- `day` numeric
+- `month`,
+- `year`
+
+```{r}
+?"?"
+```
+
+`methods?f` will look for overall documentation for methods for the function f.
+This corresponds to the file with alias `f-methods`
+
